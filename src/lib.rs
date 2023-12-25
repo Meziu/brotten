@@ -1,5 +1,5 @@
 use num::{complex::Complex64, Zero};
-use std::num::NonZeroU64;
+use std::{num::NonZeroU64, sync::Mutex};
 use threadpool::ThreadPool;
 
 const MAX_ITER: NonZeroU64 = unsafe { NonZeroU64::new_unchecked(255) };
@@ -11,9 +11,11 @@ pub fn mandelbrot_in_rect(
     h_divs: NonZeroU64,
     v_divs: NonZeroU64,
     max_iter: NonZeroU64,
-) {
+) -> Vec<(f64, f64, u64)> {
     let h_divs = h_divs.get();
     let v_divs = v_divs.get();
+
+    let mut buf: Vec<(f64, f64, u64)> = Vec::with_capacity((h_divs*v_divs) as usize);
 
     let mut delta = Complex64::zero();
 
@@ -29,9 +31,11 @@ pub fn mandelbrot_in_rect(
 
             let n = mandelbrot_diverges(next, max_iter);
 
-            println!("{} {} {}", next.re, next.im, n);
+            buf.push((next.re, next.im, n));
         }
     }
+
+    buf
 }
 
 pub fn mandelbrot_diverges(c: Complex64, max_iter: NonZeroU64) -> u64 {
@@ -54,7 +58,7 @@ pub fn mandelbrot_diverges(c: Complex64, max_iter: NonZeroU64) -> u64 {
 ///
 /// This function automatically spreads the work between threads if possible.
 pub fn solve(start: Complex64, end: Complex64, h_divs: NonZeroU64, v_divs: NonZeroU64) {
-    let cores = 1; // num_cpus::get();
+    let cores = num_cpus::get();
 
     // We divide the original rect by its width for the number of available cores.
     let subrect_width = (end.re - start.re) / cores as f64;
@@ -63,12 +67,17 @@ pub fn solve(start: Complex64, end: Complex64, h_divs: NonZeroU64, v_divs: NonZe
 
     let pool = ThreadPool::new(cores);
 
+    static RESULT: Mutex<Vec<Vec<(f64, f64, u64)>>> = Mutex::new(Vec::new());
+    RESULT.lock().unwrap().resize(cores, Vec::new());
+
     for c in 0..cores {
+        let final_vec = &RESULT;
+
         pool.execute(move || {
             let mut n_start = start;
             n_start.re += subrect_width * c as f64;
 
-            mandelbrot_in_rect(
+            let res = mandelbrot_in_rect(
                 n_start,
                 subrect_width,
                 height,
@@ -76,8 +85,16 @@ pub fn solve(start: Complex64, end: Complex64, h_divs: NonZeroU64, v_divs: NonZe
                 NonZeroU64::new(v_divs.get()).unwrap(),
                 MAX_ITER,
             );
+
+            final_vec.lock().unwrap()[c] = res;
         });
     }
 
     pool.join();
+
+    for v in RESULT.lock().unwrap().iter() {
+        for (r, i, n) in v {
+            println!("{r} {i} {n}");
+        }
+    }
 }
