@@ -27,36 +27,38 @@ pub fn mandelbrot_in_rect(
             next.re += delta.re * r as f64;
             next.im -= delta.im * i as f64;
 
-            mandelbrot_diverges(next, max_iter);
+            let n = mandelbrot_diverges(next, max_iter);
+
+            println!("{} {} {}", next.re, next.im, n);
         }
     }
 }
 
-pub fn mandelbrot_diverges(c: Complex64, max_iter: NonZeroU64) -> bool {
+pub fn mandelbrot_diverges(c: Complex64, max_iter: NonZeroU64) -> u64 {
     let mut z = Complex64::zero();
 
-    for _ in 0..max_iter.into() {
+    for i in 0..max_iter.into() {
         // Mandelbrot succession.
         z = z.powf(2.) + c;
 
         // If the normal of the complex number is greater than 2, the succession diverges.
-        if z.norm() >= 2. {
-            return true;
+        if (z.re.powf(2.) + z.im.powf(2.)) >= 4. {
+            return i;
         }
     }
 
-    return false;
+    return max_iter.into();
 }
 
 /// Resolve the Mandelbrot set in the specified range based on the amounts of horizontal and vertical divisions.
 ///
 /// This function automatically spreads the work between threads if possible.
 pub fn solve(start: Complex64, end: Complex64, h_divs: NonZeroU64, v_divs: NonZeroU64) {
-    let cores = num_cpus::get();
+    let cores = 1; // num_cpus::get();
 
     // We divide the original rect by its width for the number of available cores.
     let subrect_width = (end.re - start.re) / cores as f64;
-    let height = (end.im - start.im).abs();
+    let height: f64 = (end.im - start.im).abs();
     let h_divs_core = h_divs.get() / cores as u64;
 
     let pool = ThreadPool::new(cores);
