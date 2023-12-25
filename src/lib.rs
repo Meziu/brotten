@@ -43,10 +43,10 @@ pub fn mandelbrot_diverges(c: Complex64, max_iter: NonZeroU64) -> u64 {
 
     for i in 0..max_iter.into() {
         // Mandelbrot succession.
-        z = z.powf(2.) + c;
+        z = z.powi(2) + c;
 
         // If the normal of the complex number is greater than 2, the succession diverges.
-        if (z.re.powf(2.) + z.im.powf(2.)) >= 4. {
+        if (z.re.powi(2) + z.im.powi(2)) >= 4. {
             return i;
         }
     }
